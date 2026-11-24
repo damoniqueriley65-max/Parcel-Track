@@ -1,0 +1,132 @@
+# ParcelTrack.http: requests you send with one click.
+# In Visual Studio (or VS Code with the REST Client extension), open this file and click
+# "Send request" above a request.
+#
+# @host is the address in your browser when you press F5 (the http profile).
+@host = http://localhost:5420
+
+# Paste the token from request 3 here (the value of "token" in the JSON reply, with no
+# quotes). # @name request variables that take the token from the login reply are also
+# allowed, in place of pasting.
+@staff_token = PASTE_THE_STAFF_TOKEN_HERE
+
+# Paste the token from request 9 here (the admin token).
+@admin_token = PASTE_THE_ADMIN_TOKEN_HERE
+
+# A program says which one it is on every write. The branch desk program sends this.
+@client = Branch desk
+
+
+### 1. GET /api/parcels - every parcel. Expect 200 OK with a JSON list, each with a deliveryFee
+# (the seeded fees are 800, 650, 1250, 2000, 1250 for parcels 1 to 5).
+GET {{host}}/api/parcels
+
+
+### 2. POST /api/parcels with NO token - the write is locked. Expect 401 Unauthorized
+# (never a 302 to the login page). Nothing is added.
+POST {{host}}/api/parcels
+Content-Type: application/json
+X-Client: {{client}}
+
+{
+  "trackingCode": "PT-200201",
+  "recipient": "Damion Clarke",
+  "weightKg": 4.2,
+  "status": "Received",
+  "branchId": 5
+}
+
+
+### 3. POST /api/auth/login as staff@parceltrack.test - right password. Expect 200 OK and a
+# token that lasts 60 minutes. Copy the "token" value from the reply into @staff_token above.
+# @name staffLogin
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "staff@parceltrack.test",
+  "password": "Pass123!"
+}
+
+
+### 4. POST /api/auth/login as staff@parceltrack.test - WRONG password. Expect 401 Unauthorized,
+# with the same message as an unknown email.
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "staff@parceltrack.test",
+  "password": "WrongPassword!"
+}
+
+
+### 5. Request 2 again, WITH the Staff token and an X-Client header. Expect 201 Created with a
+# Location header pointing at the new parcel.
+POST {{host}}/api/parcels
+Authorization: Bearer {{staff_token}}
+Content-Type: application/json
+X-Client: {{client}}
+
+{
+  "trackingCode": "PT-200201",
+  "recipient": "Damion Clarke",
+  "weightKg": 4.2,
+  "status": "Received",
+  "branchId": 5
+}
+
+
+### 6. POST with the Staff token, tracking code AB-12 (wrong format). Expect 400 Bad Request
+# with the Part E message: "Tracking code must look like PT-123456". Nothing is added.
+POST {{host}}/api/parcels
+Authorization: Bearer {{staff_token}}
+Content-Type: application/json
+X-Client: {{client}}
+
+{
+  "trackingCode": "AB-12",
+  "recipient": "Bad Code",
+  "weightKg": 1.0,
+  "status": "Received",
+  "branchId": 1
+}
+
+
+### 7. POST with the Staff token, NO X-Client header. Expect 400 Bad Request with the Part C
+# message: "Say which program is calling: add an X-Client header". The action does not run,
+# so nothing is added.
+POST {{host}}/api/parcels
+Authorization: Bearer {{staff_token}}
+Content-Type: application/json
+
+{
+  "trackingCode": "PT-200202",
+  "recipient": "Nadine Walker",
+  "weightKg": 1.0,
+  "status": "Received",
+  "branchId": 1
+}
+
+
+### 8. DELETE /api/parcels/5 with the Staff token. Staff may not delete. Expect 403 Forbidden.
+DELETE {{host}}/api/parcels/5
+Authorization: Bearer {{staff_token}}
+X-Client: {{client}}
+
+
+### 9. POST /api/auth/login as admin@parceltrack.test - right password. Expect 200 OK and a
+# token that lasts 60 minutes. Copy the "token" value from the reply into @admin_token above.
+# @name adminLogin
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@parceltrack.test",
+  "password": "Pass123!"
+}
+
+
+### 10. DELETE /api/parcels/5 with the Admin token. Expect 204 No Content.
+DELETE {{host}}/api/parcels/5
+Authorization: Bearer {{admin_token}}
+X-Client: {{client}}
